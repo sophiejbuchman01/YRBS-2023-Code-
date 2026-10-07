@@ -8,7 +8,6 @@
 # or setwd() to the repository folder). It reads the YRBS data from data/ and
 # writes tables, the figure, and session info to output/.
 #
-# Section numbers match the written report (3-8 are the code sections).
 # =============================================================================
 
 
@@ -29,7 +28,7 @@ tab_dir   <- file.path(out_dir, "tables")
 
 for (d in c(fig_dir, tab_dir)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
-# Print a table in full (not truncated at 10 rows) and save it as a CSV.
+# Print a table in full and save it as a CSV.
 save_table <- function(tbl, name) {
   write_csv(tbl, file.path(tab_dir, paste0(name, ".csv")))
   print(tbl, n = Inf, width = Inf)
@@ -51,7 +50,7 @@ names(yrbs_2023) <- tolower(names(yrbs_2023)) # make variable names consistently
 
 # Keep the survey variables we need, plus the three survey-design variables
 # (weight, stratum, psu), and give the variables readable names.
-# Note: the survey's sex question does not say "at birth" (see report, Section 1),
+# Note: the survey's sex question does not say "at birth",
 # so `birth_sex` holds the student's self-reported sex.
 yrbs_2023_subset <-
   yrbs_2023 %>%
