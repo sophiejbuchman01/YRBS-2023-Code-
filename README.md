@@ -1,4 +1,3 @@
-
 # School Safety, Bullying, and Belonging Among Transgender and Non-Transgender Students
 
 Hello!  Welcome to my research project! 
@@ -51,8 +50,9 @@ install.packages(c("tidyverse", "survey", "broom"))
 
 1. Download or clone this repository.
 2. Open the project in RStudio.
-3. Place the prepared dataset (included in the repository), named `YRBS_2023_National.rda`, inside the `data/` folder. The file must contain an R object named `yrbs_2023`.
-4. Open `yrbs_analysis.R` and run the script from the project root.
+3. Open `yrbs_analysis.R` and run the script from the project root.
+
+The prepared dataset, `YRBS_2023_National.rda`, is included in the repository. The script looks for it in the `data/` folder first and then in the project root, so no setup is needed. It also checks that the file matches the version used in the paper and warns you if it doesn't. See `data/README.md` for where the data came from.
 
 The script creates an `output/` folder containing tables saved as CSV files, a figure, and information about the R session.
 
