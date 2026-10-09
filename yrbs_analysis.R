@@ -4,9 +4,9 @@
 #
 # Author: Sophie J Buchman
 #
-# Run this script from the project root (open yrbs-analysis.Rproj in RStudio,
-# or setwd() to the repository folder). It reads the YRBS data from data/ and
-# writes tables, the figure, and session info to output/.
+# Run this script from the project root (the folder that contains this file;
+# use setwd() if needed). It reads the YRBS data from data/ and writes tables,
+# the figure, and session info to output/.
 #
 # =============================================================================
 
@@ -21,7 +21,14 @@ library(survey)      # complex-survey design, weighted estimates and tests
 library(broom)       # tidy() for model output
 
 # ---- Paths (edit here if your files live somewhere else) ----
-data_file <- file.path("data", "YRBS_2023_National.rda")  # must create yrbs_2023, this .rda file was created from the ASC2 file available at https://www.cdc.gov/yrbs/data/index.html
+# The prepared data file (an R object named `yrbs_2023`) was created from the
+# 2023 national YRBS ASCII file at https://www.cdc.gov/yrbs/data/index.html.
+# See data/README.md. The script looks in data/ first, then the project root.
+data_name       <- "YRBS_2023_National.rda"
+data_candidates <- c(file.path("data", data_name), data_name)
+data_file       <- data_candidates[file.exists(data_candidates)][1]
+expected_md5    <- "692307f4674bc97292ab69c380b136be"  # file used for the paper
+
 out_dir   <- "output"
 fig_dir   <- file.path(out_dir, "figures")
 tab_dir   <- file.path(out_dir, "tables")
@@ -36,12 +43,18 @@ save_table <- function(tbl, name) {
 }
 
 
-# 3. Preparing the data --------------------------------------------------------
+# 1. Preparing the data --------------------------------------------------------
 
-if (!file.exists(data_file)) {
-  stop("Data file not found: ", data_file,
+if (is.na(data_file)) {
+  stop("Data file not found. Looked for: ", paste(data_candidates, collapse = ", "),
        "\nSee data/README.md for how to obtain and place the YRBS 2023 data.",
        call. = FALSE)
+}
+
+# Confirm this is the same data file used for the paper's tables
+if (unname(tools::md5sum(data_file)) != expected_md5) {
+  warning("The data file differs from the version used in the paper (MD5 mismatch). ",
+          "Results may not match the published tables.", call. = FALSE)
 }
 
 load(data_file)                               # creates the object `yrbs_2023`
@@ -50,26 +63,33 @@ names(yrbs_2023) <- tolower(names(yrbs_2023)) # make variable names consistently
 
 # Keep the survey variables we need, plus the three survey-design variables
 # (weight, stratum, psu), and give the variables readable names.
-# Note: the survey's sex question does not say "at birth",
-# so `birth_sex` holds the student's self-reported sex.
+# Note: the survey's sex question ("What is your sex?") does not say "at birth",
+# and q65 asks only "Are you transgender?". So `sex` is the student's self-reported
+# answer to the sex question, and `transgender` is their answer to q65; neither is
+# a measure of sex assigned at birth or of specific gender identity.
+# The outcomes use CDC's dichotomous (qn) variables, coded 1 = yes, 2 = no.
+# qn24 and qn25 are identical to the raw q24 and q25 items for these questions.
 yrbs_2023_subset <-
   yrbs_2023 %>%
-  select(sex, q65, qn14, q24, q25, qnclose2people,
+  select(sex, q65, qn14, qn24, qn25, qnclose2people,
          weight, stratum, psu) %>%
-  rename(birth_sex = sex,
-         gender = q65,
+  rename(transgender = q65,
          skipped_school = qn14,
-         school_bullying = q24,
-         cyber_bullying = q25,
-         close_to_others_yn = qnclose2people)
+         school_bullying = qn24,
+         cyber_bullying = qn25,
+         close_to_others_yn = qnclose2people) %>%
+  # Store every answer as a number, so the script works however the
+  # .rda file was imported (as text or as numbers)
+  mutate(across(c(sex, transgender, skipped_school, school_bullying,
+                  cyber_bullying, close_to_others_yn), ~ as.numeric(.x)))
 
 # Mark the students who belong to one of the four comparison groups:
 #   sex = female (1) or male (2), AND
 #   transgender = no (1) or yes (2).
-# All other students (unsure, does not understand, missing) are marked FALSE or NA.
+# All other students (unsure, does not understand, missing) are marked FALSE.
 yrbs_marked <-
   yrbs_2023_subset %>%
-  mutate(in_comparison = (birth_sex == 1 | birth_sex == 2) & (gender == 1 | gender == 2))
+  mutate(in_comparison = sex %in% c(1, 2) & transgender %in% c(1, 2))
 
 # Combine the sex answer and the transgender answer into one group variable.
 # Adding the two answers no longer works with four groups (female + transgender and
@@ -78,15 +98,14 @@ yrbs_marked <-
 #   11 = female, not transgender     12 = female, transgender
 #   21 = male, not transgender       22 = male, transgender
 # The code is only calculated for the marked students.
-# trans_group ignores the sex answer and is used for the additional check in Section 8.
+# trans_group ignores the sex answer and is used for the additional check in Section 6.
 yrbs_grouped <-
   yrbs_marked %>%
-  mutate(Gender_identity = as.numeric(gender),
-         comb_gender_sex = if_else(in_comparison, as.numeric(birth_sex) * 10 + Gender_identity, NA_real_),
-         trans_group = case_when(Gender_identity == 1 ~ "Not transgender",
-                                 Gender_identity == 2 ~ "Transgender")) %>%
+  mutate(comb_gender_sex = if_else(in_comparison, sex * 10 + transgender, NA_real_),
+         trans_group = case_when(transgender == 1 ~ "Not transgender",
+                                 transgender == 2 ~ "Transgender")) %>%
   # Drop the helper variables, keeping the combined group variable
-  select(-birth_sex, -gender, -Gender_identity, -in_comparison)
+  select(-sex, -transgender, -in_comparison)
 
 # Replace numeric codes with readable labels
 yrbs_labelled <-
@@ -100,11 +119,11 @@ yrbs_labelled <-
                                      1 ~ "Missed school because felt unsafe",
                                      2 ~ "Did not miss school because felt unsafe"),
          school_bullying = case_match(school_bullying,
-                                      "1" ~ "Experienced bullying",
-                                      "2" ~ "Did Not Experience Bullying"),
+                                      1 ~ "Experienced bullying",
+                                      2 ~ "Did not experience bullying"),
          cyber_bullying = case_match(cyber_bullying,
-                                     "1" ~ "Experienced cyberbullying",
-                                     "2" ~ "Did not experience cyberbullying"),
+                                     1 ~ "Experienced cyberbullying",
+                                     2 ~ "Did not experience cyberbullying"),
          close_to_others_yn = case_match(close_to_others_yn,
                                          1 ~ "Reported feeling close to people at school",
                                          2 ~ "Did not report feeling close to people at school"))
@@ -147,7 +166,7 @@ des <- svydesign(ids = ~psu, strata = ~stratum, weights = ~weight,
 des_a <- subset(des, !is.na(group))
 
 
-# 4. Who is in the analysis? ---------------------------------------------------
+# 2. Who is in the analysis? ---------------------------------------------------
 
 # Number of students in each group
 flow <- tibble(
@@ -180,9 +199,9 @@ miss %>%
   save_table("02_missing_data")
 
 
-# 5. Results -------------------------------------------------------------------
+# 3. Results -------------------------------------------------------------------
 
-## 5.1 Percentage reporting each experience ------------------------------------
+## 3.1 Percentage reporting each experience ------------------------------------
 # Survey-weighted percentages with 95% confidence intervals (logit method).
 
 prev_one <- function(v) {
@@ -206,7 +225,7 @@ prev %>%
   save_table("03_weighted_percentages")
 
 
-## 5.2 Percentage-point differences and odds ratios ----------------------------
+## 3.2 Percentage-point differences and odds ratios ----------------------------
 
 # Percentage-point difference from the reference group
 rd <- prev %>%
@@ -246,7 +265,7 @@ or_tab %>%
   save_table("05_odds_ratios")
 
 
-## 5.3 Rao-Scott F-test with Holm adjustment -----------------------------------
+## 3.3 Rao-Scott F-test with Holm adjustment -----------------------------------
 # The last column adjusts for testing four outcomes at once.
 
 rs <- map_dfr(bin_vars, function(v) {
@@ -267,7 +286,7 @@ rs %>%
   save_table("06_rao_scott_tests")
 
 
-## 5.4 Figure 1: weighted percentage reporting each experience -----------------
+## 3.4 Figure 1: weighted percentage reporting each experience -----------------
 
 labs_out <- c(skipped_school_bin  = "Missed school\n(felt unsafe)",
               school_bullying_bin = "Bullied at school",
@@ -318,10 +337,11 @@ fig1 <- ggplot(fig_dat, aes(x = outcome_lab, y = pct, ymin = lo, ymax = hi,
         plot.caption = element_text(hjust = 0))
 
 # In RStudio, run `fig1` to preview the plot.
-ggsave(file.path(fig_dir, "figure1.png"), fig1, width = 11, height = 6, dpi = 300)
+ggsave(file.path(fig_dir, "figure1.png"), fig1, width = 11, height = 6, dpi = 300,
+       bg = "white")  # white background on every ggplot2 version
 
 
-# 6. Simple percentages, without survey weights --------------------------------
+# 4. Simple percentages, without survey weights --------------------------------
 # Plain percentages among the students in the survey, with no weighting. They
 # describe the students who answered, not all U.S. students, and are shown for
 # comparison with the weighted results above.
@@ -335,7 +355,7 @@ for (var in outcome_vars) {
 }
 
 
-# 7. Check: does accounting for the survey design matter? ----------------------
+# 5. Check: does accounting for the survey design matter? ----------------------
 # Compares the design-adjusted Rao-Scott test with an ordinary chi-square test.
 
 unw <- map_dfr(bin_vars, function(v) {
@@ -354,7 +374,7 @@ left_join(rs, unw, by = "outcome") %>%
   save_table("07_design_check")
 
 
-# 8. Check: all transgender vs. all non-transgender students -------------------
+# 6. Check: all transgender vs. all non-transgender students -------------------
 # The sex question does not say "at birth", so this repeats the analysis without
 # using the sex question at all.
 
@@ -386,7 +406,7 @@ robust %>%
   save_table("08_all_transgender_vs_not")
 
 
-# 11. Software information -----------------------------------------------------
+# 7. Software information ------------------------------------------------------
 
 writeLines(capture.output(sessionInfo()), file.path(out_dir, "session_info.txt"))
 message("Done. Tables, figure, and session info are in '", out_dir, "/'.")
