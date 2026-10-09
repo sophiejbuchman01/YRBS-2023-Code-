@@ -14,9 +14,9 @@ Centers for Disease Control and Prevention, 2023 National YRBS, ASCII data file:
 
 Variable definitions follow the CDC's *2023 YRBS Data User's Guide*: https://www.cdc.gov/yrbs/media/pdf/2023/2023_National_YRBS_Data_Users_Guide508.pdf
 
-Date downloaded: 8/12/2026
+Date downloaded: August 12th, 2026
 
-ASCII file was converted to .rda by Aida Pacheco-Applegate via personal communication for a differnt project. 
+The ASCII file was converted to .rda by Aida Pacheco-Applegate for a different project and shared with me. The conversion code is not included, and the checksum above identifies the exact file used.
 
 ## Variables used in the analysis
 
