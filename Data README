@@ -1,0 +1,33 @@
+# Data
+
+## File
+
+`YRBS_2023_National.rda` contains one R object, `yrbs_2023`: the 2023 national Youth Risk Behavior Survey (YRBS) public-use data, with 20,103 students and 269 variables.
+
+MD5 checksum of the file used for the paper: `692307f4674bc97292ab69c380b136be`
+
+`yrbs_analysis.R` checks this checksum each time it runs and warns if the file differs.
+
+## Source
+
+Centers for Disease Control and Prevention, 2023 National YRBS, ASCII data file: https://www.cdc.gov/yrbs/data/index.html
+
+Variable definitions follow the CDC's *2023 YRBS Data User's Guide*: https://www.cdc.gov/yrbs/media/pdf/2023/2023_National_YRBS_Data_Users_Guide508.pdf
+
+Date downloaded: 8/12/2026
+
+ASCII file was converted to .rda by Aida Pacheco-Applegate via personal communication for a differnt project. 
+
+## Variables used in the analysis
+
+| Variable | Meaning | Coding |
+|---|---|---|
+| `sex` | "What is your sex?" (does not specify sex assigned at birth) | 1 = female, 2 = male |
+| `q65` | "Are you transgender?" | 1 = no, 2 = yes, 3 = not sure, 4 = does not know what the question is asking |
+| `qn14` | Did not go to school on at least 1 day in the past 30 days because they felt unsafe | 1 = yes, 2 = no |
+| `qn24` | Bullied on school property in the past 12 months | 1 = yes, 2 = no |
+| `qn25` | Electronically bullied in the past 12 months | 1 = yes, 2 = no |
+| `qnclose2people` | Agree or strongly agree that they feel close to people at school | 1 = yes, 2 = no (not sure, disagree, or strongly disagree) |
+| `weight`, `stratum`, `psu` | Survey design: sampling weight, stratum, primary sampling unit | |
+
+Note: `stweight` in this file is students' body weight in kilograms, not a sampling weight.
