@@ -5,7 +5,7 @@ Hello!  Welcome to my research project! 
 
 This repository contains the R code for my analysis of the **2023 CDC Youth Risk Behavior Survey (YRBS)**. I wanted to better understand how school experiences differ between transgender and non-transgender students, particularly when it comes to safety, bullying, and feeling connected to others at school.
 
-For this project, I use data to better understand students' experiences and contribute to research that can inform policies and make schools safer and more supportive.
+For this project, I use the YRBS to better understand students' experiences and contribute to research that can inform policies and make schools safer and more supportive.
 
 ## What does this project look at?
 
