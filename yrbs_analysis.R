@@ -2,7 +2,7 @@
 # School Safety, Bullying, and Belonging Among Transgender and Non-Transgender
 # Students: A Survey-Weighted Analysis of the 2023 Youth Risk Behavior Survey
 #
-# Author: Sophie J Buchman, BSW
+# Author: Sophie J Buchman
 #
 # Run this script from the project root (open yrbs-analysis.Rproj in RStudio,
 # or setwd() to the repository folder). It reads the YRBS data from data/ and
