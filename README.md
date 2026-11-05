@@ -37,9 +37,9 @@ The analysis accounts for the YRBS's complex survey design, including sampling w
 
 ### Supplement
 
-My reviewers' biggest question was: *does it actually matter that I split transgender students by their answer to the sex question?* The supplement (`yrbs_supplementary_analyses.R`) was built to answer that, plus a few other things they asked about. It uses the exact same data, survey design, groups, and outcomes as the main script, and it checks that it reproduces the main results before it does anything new. It:
+My reviewers' biggest question was: *does it actually matter that I split transgender students by their answer to the sex question?* The supplement (`yrbs_supplementary_analyses.R`) was created to answer that, plus a few other new additions. It uses the exact same data, survey design, groups, and outcomes as the main script, and it checks that it reproduces the main results before it does anything new. 
 
-* Tests whether the gap between transgender and non-transgender students is different for students who answered "female" versus "male" to the sex question. This is the sex × transgender interaction, on both the percentage-point and odds scales.
+* Tests whether the gap between transgender and non-transgender students is different for students who answered "female" vs. "male" to the sex question. This is the sex × transgender interaction, on both the percentage-point and odds scales.
 * Describes the sample by grade, age, race and ethnicity, and sexual identity.
 * Adds 95% confidence intervals to the percentage-point differences, and Holm-adjusted p-values to the odds ratios.
 * Re-runs the models adjusting for grade, race and ethnicity, and sexual identity.
