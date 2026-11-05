@@ -1,0 +1,556 @@
+# =============================================================================
+# Supplementary analyses for:
+# School Safety, Bullying, and Belonging Among Transgender and Non-Transgender
+# Students: A Survey-Weighted Analysis of the 2023 Youth Risk Behavior Survey
+#
+# Author: Sophie J Buchman, BSW
+#
+# This script adds the analyses requested in advisor review. It does not change
+# yrbs_analysis.R. It uses the same data, survey design, comparison groups, and
+# outcome coding, and runs yrbs_analysis.R first if it has not been run in this
+# R session.
+#
+# Run from the project root, after (or instead of) yrbs_analysis.R:
+#   source("yrbs_supplementary_analyses.R")
+#
+# Tables are saved to output/tables/ with an "S" prefix:
+#   S01  Who was excluded, and who skipped the sex question
+#   S02  Sample characteristics by group (Table 1)
+#   S03  Percentage-point differences with 95% CIs
+#   S04  Odds ratios with Holm-adjusted p-values (Table 4)
+#   S05  Sex x transgender interaction (Table 4a)
+#   S06  Adjusted odds ratios and adjusted interaction
+#   S07  Prevalence ratios
+#   S08  Male, not transgender as the reference group
+#   S09  Check 2 repeated on the main analytic sample
+#   S10  Check 3: "not sure" students as a fifth group
+#   S11  Check 4: students who skipped the sex question
+#   S12  Check 5: screening for possibly inaccurate responses
+#   S13  Who answered the closeness question
+# =============================================================================
+ 
+ 
+# 0. Setup ---------------------------------------------------------------------
+ 
+if (!exists("des_a") || !exists("yrbs_analysis") || !exists("yrbs_2023")) {
+  source("yrbs_analysis.R")
+}
+ 
+# yrbs_analysis keeps every row of yrbs_2023 in the same order (it only selects,
+# renames, and recodes columns), so columns can be copied across row by row.
+stopifnot(nrow(yrbs_analysis) == nrow(yrbs_2023))
+ 
+num <- function(x) suppressWarnings(as.numeric(x))
+ 
+# Formatting helpers used in the tables below
+fmt_p <- function(p) ifelse(p < .001, "< .001", sub("^0", "", sprintf("%.3f", p)))
+fmt_ci <- function(est, lo, hi, digits = 1) {
+  sprintf(paste0("%.", digits, "f [%.", digits, "f, %.", digits, "f]"), est, lo, hi)
+}
+ 
+ 
+# 1. Extra variables -----------------------------------------------------------
+# Codes follow the 2023 YRBS Data User's Guide.
+ 
+supp <- yrbs_analysis %>%
+  mutate(
+    sex_raw   = num(yrbs_2023$sex),   # 1 = female, 2 = male
+    trans_raw = num(yrbs_2023$q65),   # 1 = no, 2 = yes, 3 = not sure, 4 = does not know what the question is asking
+ 
+    # Sex and transgender answers as separate factors (main sample only)
+    sex_resp   = factor(case_match(sex_raw, 1 ~ "Female", 2 ~ "Male"),
+                        levels = c("Female", "Male")),
+    trans_resp = factor(case_match(trans_raw, 1 ~ "Not transgender", 2 ~ "Transgender"),
+                        levels = c("Not transgender", "Transgender")),
+ 
+    # Demographics
+    grade = factor(case_match(num(yrbs_2023$grade),
+                              1 ~ "9th", 2 ~ "10th", 3 ~ "11th", 4 ~ "12th"),
+                   levels = c("9th", "10th", "11th", "12th")),
+    age = factor(case_match(num(yrbs_2023$age),
+                            c(1, 2, 3) ~ "14 or younger", 4 ~ "15", 5 ~ "16",
+                            6 ~ "17", 7 ~ "18 or older"),
+                 levels = c("14 or younger", "15", "16", "17", "18 or older")),
+    race7 = factor(case_match(num(yrbs_2023$race7),
+                              1 ~ "American Indian or Alaska Native",
+                              2 ~ "Asian",
+                              3 ~ "Black or African American",
+                              4 ~ "Hispanic or Latino",
+                              5 ~ "Native Hawaiian or Other Pacific Islander",
+                              6 ~ "White",
+                              7 ~ "Multiple races"),
+                   levels = c("American Indian or Alaska Native", "Asian",
+                              "Black or African American", "Hispanic or Latino",
+                              "Native Hawaiian or Other Pacific Islander", "White",
+                              "Multiple races")),
+    race4 = factor(case_match(num(yrbs_2023$race4),
+                              1 ~ "White", 2 ~ "Black or African American",
+                              3 ~ "Hispanic or Latino", 4 ~ "All other races"),
+                   levels = c("White", "Black or African American",
+                              "Hispanic or Latino", "All other races")),
+    sexual_identity = factor(case_match(num(yrbs_2023$sexid),
+                                        1 ~ "Heterosexual", 2 ~ "Gay or lesbian",
+                                        3 ~ "Bisexual", 4 ~ "Describes identity some other way",
+                                        5 ~ "Not sure (questioning)"),
+                             levels = c("Heterosexual", "Gay or lesbian", "Bisexual",
+                                        "Describes identity some other way",
+                                        "Not sure (questioning)")),
+    # Three-level version used in the adjusted models (fewer sparse cells)
+    sexid3 = factor(case_match(num(yrbs_2023$sexid2),
+                               1 ~ "Heterosexual", 2 ~ "Gay, lesbian, or bisexual",
+                               3 ~ "Some other way or questioning"),
+                    levels = c("Heterosexual", "Gay, lesbian, or bisexual",
+                               "Some other way or questioning")),
+ 
+    # Check 3: the four groups plus students who answered "not sure"
+    group5 = factor(case_when(!is.na(group) ~ as.character(group),
+                              trans_raw == 3 ~ "Not sure if transgender"),
+                    levels = c(group_levels, "Not sure if transgender")),
+ 
+    # Check 4: the four groups plus students who answered the transgender
+    # question but skipped the sex question
+    group6 = factor(case_when(!is.na(group) ~ as.character(group),
+                              trans_raw == 2 & is.na(sex_raw) ~ "Transgender, sex not answered",
+                              trans_raw == 1 & is.na(sex_raw) ~ "Not transgender, sex not answered"),
+                    levels = c(group_levels, "Not transgender, sex not answered",
+                               "Transgender, sex not answered")),
+ 
+    # Check 5: answers of "4 or more times per day" on the seven 7-day
+    # food-frequency items (q68-q74: 100% fruit juice, fruit, green salad,
+    # potatoes, carrots, other vegetables, soda). These items are unrelated to
+    # transgender identity, and several answers in the most extreme category
+    # suggest a student may not have answered the survey accurately
+    # (Robinson-Cimpian, 2014).
+    extreme_food = rowSums(sapply(paste0("q", 68:74),
+                                  function(v) num(yrbs_2023[[v]]) == 7),
+                           na.rm = TRUE),
+ 
+    answered_close = as.integer(!is.na(not_close_bin))
+  )
+ 
+# Same design specification as yrbs_analysis.R, built on all students and then
+# restricted to the students in each analysis.
+des_s  <- svydesign(ids = ~psu, strata = ~stratum, weights = ~weight,
+                    data = supp, nest = TRUE)
+des_sa <- subset(des_s, !is.na(group))            # main analytic sample (n = 17,496)
+ 
+# Confirm this reproduces Table 2 from yrbs_analysis.R
+check <- svyby(~skipped_school_bin, ~group, des_sa, svymean, na.rm = TRUE)
+stopifnot(isTRUE(all.equal(unname(100 * coef(check)),
+                           prev$pct[prev$outcome == "skipped_school_bin"],
+                           tolerance = 1e-8)))
+ 
+ 
+# 2. Helper functions ----------------------------------------------------------
+ 
+# Survey-weighted percentage with 95% CI (logit method), by any grouping variable
+prev_by <- function(design, by, v) {
+  r <- svyby(as.formula(paste0("~", v)), as.formula(paste0("~", by)), design,
+             svyciprop, vartype = "ci", method = "logit", na.rm = TRUE)
+  n_valid <- design$variables %>%
+    filter(!is.na(.data[[by]]), !is.na(.data[[v]])) %>%
+    count(.data[[by]], name = "n_valid")
+  tibble(outcome = v, group = as.character(r[[by]]),
+         pct = 100 * r[[2]], lo = 100 * r$ci_l, hi = 100 * r$ci_u) %>%
+    left_join(n_valid %>% rename(group = 1) %>% mutate(group = as.character(group)),
+              by = "group")
+}
+ 
+# Odds ratios (or prevalence ratios with family = quasipoisson(link = "log"))
+# for every term that starts with `prefix`
+ratio_by <- function(design, rhs, v, prefix, family = quasibinomial()) {
+  m <- svyglm(as.formula(paste(v, "~", rhs)), design = design, family = family)
+  tidy(m, conf.int = TRUE, exponentiate = TRUE) %>%
+    filter(str_starts(term, prefix)) %>%
+    transmute(outcome = v, term = str_remove(term, paste0("^", prefix)),
+              ratio = estimate, lo = conf.low, hi = conf.high, p = p.value,
+              n_used = nobs(m))
+}
+ 
+# Percentage-point differences between groups, with design-based 95% CIs.
+# `levels` gives the group order; each comparison group is compared with `ref`.
+pp_diff_by <- function(design, by, v, levels, ref) {
+  b <- svyby(as.formula(paste0("~", v)), as.formula(paste0("~", by)), design,
+             svymean, na.rm = TRUE, covmat = TRUE)
+  stopifnot(identical(as.character(b[[by]]), levels))
+  others <- setdiff(levels, ref)
+  K <- lapply(others, function(g) as.numeric(levels == g) - as.numeric(levels == ref))
+  names(K) <- others
+  con <- svycontrast(b, K)
+  est <- coef(con); se <- SE(con); df <- degf(design)
+  tibble(outcome = v, group = others,
+         diff = 100 * est,
+         lo = 100 * (est - qt(.975, df) * se),
+         hi = 100 * (est + qt(.975, df) * se),
+         p = 2 * pt(-abs(est / se), df))
+}
+ 
+ 
+# A. Who was excluded? ---------------------------------------------------------
+ 
+excl_tab <- supp %>%
+  mutate(`Transgender question` = case_match(trans_raw,
+                                             1 ~ "No", 2 ~ "Yes", 3 ~ "Not sure",
+                                             4 ~ "Does not know what the question is asking",
+                                             .default = "Did not answer"),
+         `Sex question` = if_else(is.na(sex_raw), "Did not answer", "Answered")) %>%
+  count(`Transgender question`, `Sex question`, name = "Students")
+ 
+excl_tab %>% save_table("S01a_exclusions")
+ 
+# Skipping the sex question among students who answered "yes" or "no"
+skip_sex <- supp %>%
+  filter(trans_raw %in% 1:2) %>%
+  group_by(`Transgender answer` = if_else(trans_raw == 2, "Yes", "No")) %>%
+  summarise(Students = n(),
+            `Skipped sex question` = sum(is.na(sex_raw)),
+            `% skipped` = round(100 * mean(is.na(sex_raw)), 2),
+            .groups = "drop")
+ 
+skip_sex %>% save_table("S01b_skipped_sex_question")
+ 
+ 
+# B. Table 1: sample characteristics by group ----------------------------------
+# Weighted column percentages (each group sums to 100% within a characteristic),
+# plus unweighted counts. Missing values are excluded from the percentages and
+# reported separately.
+ 
+demo_vars <- c(grade = "Grade", age = "Age", race7 = "Race and ethnicity",
+               sexual_identity = "Sexual identity")
+ 
+demo_one <- function(var) {
+  w <- svytable(as.formula(paste0("~", var, " + group")), des_sa)
+  pct <- as.data.frame(prop.table(w, margin = 2) * 100, stringsAsFactors = FALSE) %>%
+    rename(category = 1, group = 2, pct = Freq)
+  n <- supp %>% filter(!is.na(group), !is.na(.data[[var]])) %>%
+    count(category = as.character(.data[[var]]), group = as.character(group))
+  miss_n <- supp %>% filter(!is.na(group)) %>%
+    group_by(group = as.character(group)) %>%
+    summarise(category = "Missing (n)", n = sum(is.na(.data[[var]])), .groups = "drop")
+  pct %>%
+    mutate(category = as.character(category), group = as.character(group)) %>%
+    left_join(n, by = c("category", "group")) %>%
+    mutate(n = replace_na(n, 0L)) %>%
+    bind_rows(miss_n) %>%
+    mutate(characteristic = demo_vars[[var]])
+}
+ 
+table1 <- map_dfr(names(demo_vars), demo_one) %>%
+  mutate(cell = if_else(category == "Missing (n)",
+                        formatC(n, format = "d", big.mark = ","),
+                        sprintf("%.1f (%s)", pct, formatC(n, format = "d", big.mark = ","))),
+         group = factor(group, levels = group_levels)) %>%
+  select(characteristic, category, group, cell) %>%
+  pivot_wider(names_from = group, values_from = cell) %>%
+  rename(Characteristic = characteristic, Category = category)
+ 
+table1 %>% save_table("S02_table1_characteristics")
+ 
+ 
+# C. Percentage-point differences with 95% CIs ---------------------------------
+ 
+pp_ci <- map_dfr(bin_vars, ~ pp_diff_by(des_sa, "group", .x, group_levels, ref_group)) %>%
+  mutate(p_holm = p.adjust(p, method = "holm"))
+ 
+pp_ci %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, `Group (vs. Female, not transgender)` = group,
+            `Difference, pp [95% CI]` = fmt_ci(diff, lo, hi),
+            `p-value` = fmt_p(p), `Holm-adjusted p` = fmt_p(p_holm)) %>%
+  save_table("S03_pp_differences_ci")
+ 
+ 
+# D. Odds ratios with Holm-adjusted p-values -----------------------------------
+# Same models as Table 4 in yrbs_analysis.R; Holm adjusts across all 12 comparisons.
+ 
+or_holm <- or_tab %>% mutate(p_holm = p.adjust(p, method = "holm"))
+ 
+or_holm %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, `Group (vs. Female, not transgender)` = group,
+            `Odds ratio` = round(OR, 2), `CI lower` = round(lo, 2), `CI upper` = round(hi, 2),
+            `p-value` = fmt_p(p), `Holm-adjusted p` = fmt_p(p_holm)) %>%
+  save_table("S04_odds_ratios_holm")
+ 
+ 
+# E. Table 4a: does the transgender gap differ by answer to the sex question? --
+# Within the main analytic sample, sex_resp and trans_resp reproduce the four
+# groups exactly. Two models per outcome:
+#   Additive scale (linear probability model): the interaction term is the
+#     difference between the transgender gap among students who answered "male"
+#     and the gap among students who answered "female", in percentage points.
+#   Multiplicative scale (logistic model): the interaction term is the ratio of
+#     the two within-sex odds ratios.
+# Holm adjusts across the four outcomes on each scale.
+ 
+interact_one <- function(v) {
+  f <- as.formula(paste(v, "~ sex_resp * trans_resp"))
+  int <- "sex_respMale:trans_respTransgender"
+ 
+  m_lp <- svyglm(f, design = des_sa)                       # linear probability
+  df_lp <- degf(des_sa)   # same degrees of freedom as the percentage-point CIs in Section C
+  con <- svycontrast(m_lp, list(gap_female = c(trans_respTransgender = 1),
+                                gap_male   = setNames(c(1, 1), c("trans_respTransgender", int)),
+                                diff       = setNames(1, int)))
+  est <- coef(con); se <- SE(con)
+ 
+  m_lr <- svyglm(f, design = des_sa, family = quasibinomial())
+  df_lr <- m_lr$df.residual
+  lcon <- svycontrast(m_lr, list(or_female = c(trans_respTransgender = 1),
+                                 or_male   = setNames(c(1, 1), c("trans_respTransgender", int)),
+                                 ratio     = setNames(1, int)))
+  lest <- coef(lcon); lse <- SE(lcon)
+ 
+  tq  <- qt(.975, df_lp); tql <- qt(.975, df_lr)
+  tibble(outcome = v,
+         gap_female = 100 * est[["gap_female"]],
+         gap_female_lo = 100 * (est[["gap_female"]] - tq * se[["gap_female"]]),
+         gap_female_hi = 100 * (est[["gap_female"]] + tq * se[["gap_female"]]),
+         gap_male = 100 * est[["gap_male"]],
+         gap_male_lo = 100 * (est[["gap_male"]] - tq * se[["gap_male"]]),
+         gap_male_hi = 100 * (est[["gap_male"]] + tq * se[["gap_male"]]),
+         diff = 100 * est[["diff"]],
+         diff_lo = 100 * (est[["diff"]] - tq * se[["diff"]]),
+         diff_hi = 100 * (est[["diff"]] + tq * se[["diff"]]),
+         p_add = 2 * pt(-abs(est[["diff"]] / se[["diff"]]), df_lp),
+         or_female = exp(lest[["or_female"]]),
+         or_male = exp(lest[["or_male"]]),
+         ratio_or = exp(lest[["ratio"]]),
+         ratio_lo = exp(lest[["ratio"]] - tql * lse[["ratio"]]),
+         ratio_hi = exp(lest[["ratio"]] + tql * lse[["ratio"]]),
+         p_mult = 2 * pt(-abs(lest[["ratio"]] / lse[["ratio"]]), df_lr))
+}
+ 
+interaction <- map_dfr(bin_vars, interact_one) %>%
+  mutate(p_add_holm = p.adjust(p_add, method = "holm"),
+         p_mult_holm = p.adjust(p_mult, method = "holm"))
+ 
+interaction %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome,
+            `Gap, "female" (pp) [95% CI]` = fmt_ci(gap_female, gap_female_lo, gap_female_hi),
+            `Gap, "male" (pp) [95% CI]`   = fmt_ci(gap_male, gap_male_lo, gap_male_hi),
+            `Difference in gaps (pp) [95% CI]` = fmt_ci(diff, diff_lo, diff_hi),
+            `p (additive)` = fmt_p(p_add), `Holm p (additive)` = fmt_p(p_add_holm),
+            `OR, "female"` = round(or_female, 2), `OR, "male"` = round(or_male, 2),
+            `Ratio of ORs [95% CI]` = fmt_ci(ratio_or, ratio_lo, ratio_hi, digits = 2),
+            `p (multiplicative)` = fmt_p(p_mult), `Holm p (multiplicative)` = fmt_p(p_mult_holm)) %>%
+  save_table("S05_interaction_table4a")
+ 
+ 
+# F. Adjusted models -----------------------------------------------------------
+# Adds grade, race and ethnicity (4 levels), and sexual identity (3 levels).
+# Students missing any covariate are dropped, so n is reported for each model.
+ 
+covars <- "grade + race4 + sexid3"
+ 
+adj_or <- map_dfr(bin_vars, ~ ratio_by(des_sa, paste("group +", covars), .x, "group"))
+ 
+adj_or %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, `Group (vs. Female, not transgender)` = term,
+            `Adjusted OR` = round(ratio, 2), `CI lower` = round(lo, 2), `CI upper` = round(hi, 2),
+            `p-value` = fmt_p(p), `Students in model` = n_used) %>%
+  save_table("S06a_adjusted_odds_ratios")
+ 
+adj_int <- map_dfr(bin_vars, function(v) {
+  ratio_by(des_sa, paste("sex_resp * trans_resp +", covars), v,
+           "sex_respMale:trans_respTransgender")
+}) %>%
+  mutate(p_holm = p.adjust(p, method = "holm"))
+ 
+adj_int %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome,
+            `Adjusted ratio of ORs [95% CI]` = fmt_ci(ratio, lo, hi, digits = 2),
+            `p-value` = fmt_p(p), `Holm-adjusted p` = fmt_p(p_holm),
+            `Students in model` = n_used) %>%
+  save_table("S06b_adjusted_interaction")
+ 
+ 
+# G. Prevalence ratios ---------------------------------------------------------
+# Log-link Poisson model with design-based standard errors; the exponentiated
+# coefficients are prevalence ratios (easier to read than ORs when outcomes are
+# common, such as not feeling close to people at school).
+ 
+pr_tab <- map_dfr(bin_vars, ~ ratio_by(des_sa, "group", .x, "group",
+                                        family = quasipoisson(link = "log")))
+ 
+pr_tab %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, `Group (vs. Female, not transgender)` = term,
+            `Prevalence ratio` = round(ratio, 2), `CI lower` = round(lo, 2),
+            `CI upper` = round(hi, 2), `p-value` = fmt_p(p)) %>%
+  save_table("S07_prevalence_ratios")
+ 
+ 
+# H. Male, not transgender as the reference group ------------------------------
+ 
+levels_m <- c("Male, not transgender", "Female, not transgender",
+              "Female, transgender", "Male, transgender")
+des_m <- update(des_sa, group_m = factor(as.character(group), levels = levels_m))
+ 
+male_ref_or <- map_dfr(bin_vars, ~ ratio_by(des_m, "group_m", .x, "group_m"))
+male_ref_pp <- map_dfr(bin_vars, ~ pp_diff_by(des_m, "group_m", .x, levels_m,
+                                              "Male, not transgender"))
+ 
+left_join(male_ref_pp %>% rename(term = group),
+          male_ref_or %>% select(outcome, term, ratio, or_lo = lo, or_hi = hi, or_p = p),
+          by = c("outcome", "term")) %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, `Group (vs. Male, not transgender)` = term,
+            `Difference, pp [95% CI]` = fmt_ci(diff, lo, hi),
+            `Odds ratio [95% CI]` = fmt_ci(ratio, or_lo, or_hi, digits = 2),
+            `p-value (OR)` = fmt_p(or_p)) %>%
+  save_table("S08_male_reference_group")
+ 
+ 
+# I. Check 2 repeated on the main analytic sample ------------------------------
+# Same comparison as Table 7, but restricted to the 17,496 students in the main
+# analysis (569 transgender, 16,927 not transgender), so the only change from the
+# main analysis is that the sex answer is no longer used.
+ 
+check2_main <- map_dfr(bin_vars, function(v) {
+  pr <- prev_by(des_sa, "trans_resp", v)
+  or <- ratio_by(des_sa, "trans_resp", v, "trans_resp")
+  tibble(outcome = v,
+         pct_not = pr$pct[pr$group == "Not transgender"],
+         pct_trans = pr$pct[pr$group == "Transgender"],
+         OR = or$ratio, lo = or$lo, hi = or$hi, p = or$p)
+})
+ 
+check2_main %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, `% not transgender` = round(pct_not, 1),
+            `% transgender` = round(pct_trans, 1),
+            `Odds ratio [95% CI]` = fmt_ci(OR, lo, hi, digits = 2), `p-value` = fmt_p(p)) %>%
+  save_table("S09_check2_main_sample")
+ 
+ 
+# J. Check 3: "not sure" students as a fifth group -----------------------------
+ 
+des_5 <- subset(des_s, !is.na(group5))
+ 
+check3 <- map_dfr(bin_vars, function(v) {
+  pr <- prev_by(des_5, "group5", v)
+  or <- ratio_by(des_5, "group5", v, "group5") %>% rename(group = term)
+  left_join(pr, or %>% select(outcome, group, OR = ratio, or_lo = lo, or_hi = hi, p),
+            by = c("outcome", "group"))
+})
+ 
+check3 %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, Group = group,
+            `Percent [95% CI]` = fmt_ci(pct, lo, hi),
+            `Odds ratio vs. female, not transgender [95% CI]` =
+              if_else(is.na(OR), "Reference", fmt_ci(OR, or_lo, or_hi, digits = 2)),
+            `p-value` = if_else(is.na(p), "", fmt_p(p)),
+            `Students who answered` = n_valid) %>%
+  save_table("S10_check3_questioning_group")
+ 
+ 
+# K. Check 4: students who answered the transgender question but not the sex question
+# These groups are small (43 transgender and 59 non-transgender students), so the
+# estimates are imprecise and are reported for transparency only.
+ 
+des_6 <- subset(des_s, !is.na(group6))
+ 
+check4 <- map_dfr(bin_vars, ~ prev_by(des_6, "group6", .x)) %>%
+  filter(group %in% c("Not transgender, sex not answered", "Transgender, sex not answered"))
+ 
+check4 %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome, Group = group,
+            `Percent [95% CI]` = fmt_ci(pct, lo, hi),
+            `Students who answered` = n_valid) %>%
+  save_table("S11_check4_sex_not_answered")
+ 
+ 
+# L. Check 5: screening for possibly inaccurate responses ----------------------
+# Students are flagged if they chose "4 or more times per day" on at least
+# `screen_threshold` of the seven food-frequency items (see Section 1). The main
+# estimates are then repeated without flagged students. A second threshold is
+# shown so readers can see how sensitive the results are to the cut-off.
+ 
+screen_threshold <- 3
+alt_threshold    <- 2
+ 
+flag_tab <- supp %>%
+  filter(!is.na(group)) %>%
+  group_by(Group = group) %>%
+  summarise(Students = n(),
+            `Flagged (3+ items)` = sum(extreme_food >= screen_threshold),
+            `% flagged (3+)` = round(100 * mean(extreme_food >= screen_threshold), 1),
+            `Flagged (2+ items)` = sum(extreme_food >= alt_threshold),
+            `% flagged (2+)` = round(100 * mean(extreme_food >= alt_threshold), 1),
+            .groups = "drop")
+ 
+flag_tab %>% save_table("S12a_check5_flagged_students")
+ 
+screened <- function(threshold) {
+  d <- subset(des_sa, extreme_food < threshold)
+  map_dfr(bin_vars, function(v) {
+    pr <- prev_by(d, "group", v)
+    or <- ratio_by(d, "group", v, "group") %>% rename(group = term)
+    left_join(pr, or %>% select(outcome, group, OR = ratio, or_lo = lo, or_hi = hi, p),
+              by = c("outcome", "group"))
+  }) %>% mutate(threshold = threshold)
+}
+ 
+check5 <- bind_rows(screened(screen_threshold), screened(alt_threshold))
+ 
+check5 %>%
+  label_outcome() %>%
+  transmute(`Flag threshold` = paste0(threshold, "+ items"), Outcome = outcome, Group = group,
+            `Percent [95% CI]` = fmt_ci(pct, lo, hi),
+            `Odds ratio [95% CI]` = if_else(is.na(OR), "Reference",
+                                            fmt_ci(OR, or_lo, or_hi, digits = 2)),
+            `p-value` = if_else(is.na(p), "", fmt_p(p)),
+            `Students who answered` = n_valid) %>%
+  save_table("S12b_check5_screened_results")
+ 
+ 
+# M. Who answered the closeness question? --------------------------------------
+# Students in schools that also ran a state or local YRBS often received that
+# questionnaire, which may not include the closeness question (Brener et al., 2024).
+# This compares students with and without a closeness response.
+ 
+close_chars <- c(group = "Group", grade = "Grade", race4 = "Race and ethnicity",
+                 sexid3 = "Sexual identity")
+ 
+close_who <- map_dfr(names(close_chars), function(var) {
+  t <- svychisq(as.formula(paste0("~answered_close + ", var)), des_sa)
+  r <- svyby(~answered_close, as.formula(paste0("~", var)), des_sa, svymean, na.rm = TRUE)
+  tibble(Characteristic = close_chars[[var]],
+         Category = as.character(r[[var]]),
+         `% with a closeness response (weighted)` = round(100 * r$answered_close, 1),
+         `Rao-Scott p` = c(fmt_p(t$p.value), rep("", nrow(r) - 1)))
+})
+ 
+close_who %>% save_table("S13a_closeness_response_by_characteristic")
+ 
+# Do students with and without a closeness response differ on the other outcomes?
+close_outcomes <- map_dfr(setdiff(bin_vars, "not_close_bin"), function(v) {
+  pr <- prev_by(update(des_sa, answered = factor(answered_close, 0:1, c("No", "Yes"))),
+                "answered", v)
+  or <- ratio_by(update(des_sa, answered = factor(answered_close, 0:1, c("No", "Yes"))),
+                 "answered", v, "answered")
+  tibble(outcome = v,
+         pct_no = pr$pct[pr$group == "No"], pct_yes = pr$pct[pr$group == "Yes"],
+         OR = or$ratio, lo = or$lo, hi = or$hi, p = or$p)
+})
+ 
+close_outcomes %>%
+  label_outcome() %>%
+  transmute(Outcome = outcome,
+            `% without closeness response` = round(pct_no, 1),
+            `% with closeness response` = round(pct_yes, 1),
+            `Odds ratio (with vs. without) [95% CI]` = fmt_ci(OR, lo, hi, digits = 2),
+            `p-value` = fmt_p(p)) %>%
+  save_table("S13b_closeness_response_and_other_outcomes")
+ 
+ 
+# Software information ---------------------------------------------------------
+ 
+writeLines(capture.output(sessionInfo()), file.path(out_dir, "session_info_supplementary.txt"))
+message("Done. Supplementary tables (S01-S13) are in '", tab_dir, "/'.")
