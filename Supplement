@@ -261,7 +261,6 @@ pp_ci %>%
  
  
 # D. Odds ratios with Holm-adjusted p-values -----------------------------------
-# Same models as Table 4 in yrbs_analysis.R; Holm adjusts across all 12 comparisons.
  
 or_holm <- or_tab %>% mutate(p_holm = p.adjust(p, method = "holm"))
  
@@ -273,7 +272,7 @@ or_holm %>%
   save_table("S04_odds_ratios_holm")
  
  
-# E. Table 4a: does the transgender gap differ by answer to the sex question? --
+# E.  does the transgender gap differ by answer to the sex question? --
 # Within the main analytic sample, sex_resp and trans_resp reproduce the four
 # groups exactly. Two models per outcome:
 #   Additive scale (linear probability model): the interaction term is the
