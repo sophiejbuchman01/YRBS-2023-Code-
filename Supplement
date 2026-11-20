@@ -17,8 +17,8 @@
 #   S01  Who was excluded, and who skipped the sex question
 #   S02  Sample characteristics by group (Table 1)
 #   S03  Percentage-point differences with 95% CIs
-#   S04  Odds ratios with Holm-adjusted p-values (Table 4)
-#   S05  Sex x transgender interaction (Table 4a)
+#   S04  Odds ratios with Holm-adjusted p-values 
+#   S05  Sex x transgender interaction 
 #   S06  Adjusted odds ratios and adjusted interaction
 #   S07  Prevalence ratios
 #   S08  Male, not transgender as the reference group
