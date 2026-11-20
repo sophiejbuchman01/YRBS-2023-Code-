@@ -88,10 +88,10 @@ Here's where each table in the supplement file is in the main paper.
 | `S01a`, `S01b` (who was excluded) | Data section text |
 | `S02` (sample characteristics) | Table 2 |
 | `S13a`, `S13b` (closeness question) | Tables 3 and 4 |
-| `S03` (percentage-point differences with CIs) | Table 6 |
-| `S04` (odds ratios with Holm-adjusted p-values) | Table 7 |
-| `S07` (prevalence ratios) | Table 8 |
-| `S08` (male, non-transgender reference group) | Table 9 |
+| `S03` (percentage-point differences with CIs) | Table 7 |
+| `S04` (odds ratios with Holm-adjusted p-values) | Table 8 |
+| `S07` (prevalence ratios) | Table 9 |
+| `S08` (male, non-transgender reference group) | Table 10 |
 | `S05` (sex × transgender interaction) | Table 11 |
 | `S06a`, `S06b` (adjusted models) | Tables 12 and 13 |
 | `S09` (Check 2 on the main sample) | Table 16 |
