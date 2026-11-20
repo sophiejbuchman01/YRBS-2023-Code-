@@ -1,6 +1,6 @@
 # =============================================================================
 # School Safety, Bullying, and Belonging Among Transgender and Non-Transgender
-# Students: A Survey-Weighted Analysis of the 2023 Youth Risk Behavior Survey
+# Students: An Analysis of the 2023 Youth Risk Behavior Survey
 #
 # Author: Sophie J Buchman
 #
